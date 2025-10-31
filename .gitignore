@@ -1,6 +1,12 @@
 __pycache__/
 instance/
-*.pyc
-.env
-.vscode/
 *.sqlite3
+*.db
+.env
+.envrc
+.vscode/
+.DS_Store
+*.pyc
+dist/
+build/
+*.spec

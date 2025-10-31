@@ -1,2 +1,21 @@
 # Zainab PhishSim
-Short description: phishing training simulation (authorized lab use only).
+
+Zainab PhishSim — a small authorized phishing-training simulator for lab use only.
+
+Warning: This repository is intended for authorized training/testing environments only. Do not use it against real third-party systems.
+
+## Features
+- Create training campaigns
+- Landing pages (captive-like) for testing within authorized networks
+- Store events and export CSV reports
+- Terminal ASCII banner: *Powered by Zainab Basim*
+
+## Quick start (development)
+```bash
+git clone https://github.com/YOUR_USERNAME/zainab-phishsim.git
+cd zainab-phishsim
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python3 zainabbasim_phishsim_v2_unfollow_style.py
+# open http://localhost:5000

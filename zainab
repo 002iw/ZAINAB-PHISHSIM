@@ -1,0 +1,286 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Zainab Basim PhishSim - v2 "Unfollow-style" terminal banner
+This single-file app prints a stylized ASCII banner in the terminal that follows the look of the screenshot,
+but with the title "Zainab Basim" replacing "Unfollow". Also includes "Powered by Zainab Basim".
+Run: python3 zainabbasim_phishsim_v2_unfollow_style.py
+"""
+
+import os, sys, subprocess, uuid, csv
+from datetime import datetime
+
+# Minimal dependency installer for flask and sqlalchemy
+def _ensure(pkg, import_name=None):
+    try:
+        __import__(import_name or pkg)
+        return
+    except ImportError:
+        print(f"[+] Installing dependency: {pkg} ...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
+
+for dep in ("flask", "flask_sqlalchemy"):
+    _ensure(dep)
+
+from flask import Flask, request, redirect, url_for, send_file, render_template_string
+from flask_sqlalchemy import SQLAlchemy
+
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+INSTANCE_DIR = os.path.join(BASE_DIR, "instance")
+os.makedirs(INSTANCE_DIR, exist_ok=True)
+
+SECRET_KEY = os.environ.get("SECRET_KEY", "change_this_to_a_random_secret")
+BASE_URL  = os.environ.get("BASE_URL", "192.168.0.94:5000")
+HOST      = os.environ.get("HOST", "0.0.0.0")
+PORT      = int(os.environ.get("PORT", "5000"))
+DEBUG     = bool(int(os.environ.get("DEBUG", "0")))
+
+ASCII_BANNER = r"""
+
+                                Powered By :
+┌───────────────────────────────────────────────────────────────┐
+│                        z a i n a b   b a s i m                
+
+                           UNIVERSITY OF HILLA
+└───────────────────────────────────────────────────────────────┘
+                                  
+"""
+
+app = Flask(__name__)
+app.config["SECRET_KEY"] = SECRET_KEY
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(INSTANCE_DIR, "zainab_v2")
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+db = SQLAlchemy(app)
+
+class Campaign(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    token = db.Column(db.String(64), unique=True, nullable=False)
+    name = db.Column(db.String(128))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    notes = db.Column(db.Text)
+
+class Event(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    campaign_id = db.Column(db.Integer, db.ForeignKey('campaign.id'))
+    event_type = db.Column(db.String(32))
+    ip = db.Column(db.String(64))
+    ua = db.Column(db.String(512))
+    referer = db.Column(db.String(512))
+    data = db.Column(db.Text)
+    ts = db.Column(db.DateTime, default=datetime.utcnow)
+
+STYLE = """
+<style>
+:root{--accent:#0f766e;--muted:#6b7280;--bg:#f8fafc;}
+body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial; background:var(--bg); color:#0f172a; margin:0;}
+.container{max-width:1100px;margin:24px auto;padding:0 16px;}
+.header {background: linear-gradient(90deg, rgba(15,118,110,1) 0%, rgba(6,95,70,1) 100%); color:#fff; padding:18px; border-radius:12px;}
+.brand {display:flex; align-items:center; gap:16px;}
+.logo-wrap {width:56px; height:56px; display:flex; align-items:center; justify-content:center; border-radius:12px; overflow:hidden; box-shadow:0 6px 18px rgba(2,6,23,0.12); background:#0000;}
+.title {font-size:22px; margin:0; line-height:1;}
+.subtitle {margin:4px 0 0; font-size:13px; color:rgba(255,255,255,0.95);}
+.badge-powered {background: rgba(255,255,255,0.12); color: #fff; padding:6px 10px; border-radius:999px; font-size:12px; margin-left:12px; display:inline-block; font-weight:600;}
+.grid {display:grid; grid-template-columns: 1fr 360px; gap:18px; margin-top:18px;}
+.card {background:#fff; border-radius:12px; padding:18px; box-shadow: 0 4px 12px rgba(2,6,23,0.04);}
+input[type=text], textarea{width:100%; padding:10px 12px; border-radius:8px; border:1px solid #e6eef2; font-size:14px;}
+button.primary{background:var(--accent); color:#fff; padding:10px 14px; border-radius:8px; border:none; cursor:pointer;}
+.small{font-size:13px; color:var(--muted);}
+.camps-list{list-style:none; padding-left:0; margin:0;}
+.camp-item{padding:10px; border-radius:8px; border:1px solid #eef2f6; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; gap:10px;}
+.code{background:#f1f5f9; padding:6px 8px; border-radius:6px; font-family:monospace; font-size:13px;}
+.link{color:#065f46; text-decoration:none; font-weight:600;}
+.footer{font-size:12px; color:var(--muted); margin-top:12px;}
+.toolname {font-weight:800; font-size:20px; letter-spacing:0.6px;}
+.rainbow {background: linear-gradient(90deg, #ff0040, #ffbf00, #00ff9f, #0040ff); -webkit-background-clip: text; background-clip: text; color: transparent;}
+</style>
+"""
+
+DASHBOARD_HTML = STYLE + """
+<div class="container">
+  <div class="header">
+    <div class="brand">
+      <div class="logo-wrap">
+        <svg width="56" height="56" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ZB">
+          <defs>
+            <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#ff0040">
+                <animate attributeName="stop-color" values="#ff0040;#ffbf00;#00ff9f;#0040ff;#ff0040" dur="6s" repeatCount="indefinite"/>
+              </stop>
+              <stop offset="100%" stop-color="#0040ff">
+                <animate attributeName="stop-color" values="#0040ff;#ff0040;#ffbf00;#00ff9f;#0040ff" dur="6s" repeatCount="indefinite"/>
+              </stop>
+            </linearGradient>
+          </defs>
+          <rect x="2" y="2" rx="12" ry="12" width="96" height="96" fill="url(#g)" opacity="0.98" />
+          <text x="50%" y="56%" font-family="Arial, Helvetica, sans-serif" font-size="36" fill="#fff" text-anchor="middle" font-weight="700">ZB</text>
+        </svg>
+      </div>
+      <div>
+        <div class="toolname rainbow">Zainab Basim PhishSim</div>
+        <div class="subtitle">Authorized phishing simulation & training — Built by Casy</div>
+      </div>
+      <div style="margin-left:auto;">
+        <span class="badge-powered">Powered by Zainab Basim</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="card">
+        <h3>Create new campaign</h3>
+        <form method="post" action="{{ url_for('create') }}">
+          <label class="small">Campaign name</label>
+          <input name="name" placeholder="Zainab Basim Test">
+          <label class="small" style="margin-top:8px;">Notes</label>
+          <textarea name="notes" rows="2" placeholder="Authorized training only"></textarea>
+          <div style="margin-top:12px;">
+            <button class="primary" type="submit">Create campaign</button>
+            <span style="margin-left:12px;" class="small">Base URL: <span class="code">{{ base_url }}</span></span>
+          </div>
+        </form>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <h3>How to use</h3>
+        <ol class="small">
+          <li>Create a campaign from here.</li>
+          <li>Share the generated link only inside an authorized test network.</li>
+          <li>Export CSV from the campaign entry for reporting.</li>
+        </ol>
+        <div class="footer">Security: Keep SECRET_KEY private. Do not run with DEBUG=1 in production networks.</div>
+      </div>
+    </div>
+
+    <aside>
+      <div class="card">
+        <h4>Active campaigns</h4>
+        {% if campaigns %}
+          <ul class="camps-list">
+            {% for c in campaigns %}
+              <li class="camp-item">
+                <div>
+                  <div style="font-weight:600;">{{ c.name }}</div>
+                  <div class="small">{{ c.created_at }}</div>
+                </div>
+                <div style="text-align:right;">
+                  <div class="code" style="margin-bottom:6px;">{{ base_url }}/c/{{ c.token }}</div>
+                  <div><a class="link" href="{{ url_for('export_csv', campaign_id=c.id) }}">Export CSV</a></div>
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <div class="small">No campaigns yet.</div>
+        {% endif %}
+      </div>
+
+      <div class="card" style="margin-top:12px;">
+        <h4>Quick actions</h4>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <a class="badge-powered" href="{{ url_for('index') }}">Dashboard</a>
+          <a class="badge-powered" href="{{ url_for('index') }}">Reload</a>
+        </div>
+        <div class="small" style="margin-top:8px;">Exported CSVs are saved under <code>./instance/</code></div>
+      </div>
+    </aside>
+  </div>
+</div>
+"""
+
+LANDING_HTML = STYLE + """
+<div style="max-width:600px;margin:28px auto;">
+  <div style="background:#fff;border-radius:12px;padding:20px;box-shadow:0 6px 18px rgba(2,6,23,0.06);">
+    <h2 style="margin-top:0;">Zainab Basim Training</h2>
+    <p class="small">Please sign in to continue (Training environment).</p>
+    <form action="{{ url_for('submit', token=token) }}" method="post">
+      <label class="small">Username</label>
+      <input type="text" name="username" autocomplete="off" required>
+      <label class="small" style="margin-top:8px;">Password</label>
+      <input type="password" name="password" autocomplete="off" required>
+      <div style="margin-top:12px;">
+        <button class="primary" type="submit">Sign In</button>
+      </div>
+      <div style="margin-top:10px;"><small class="note">This is a training environment — authorized test only.</small></div>
+    </form>
+  </div>
+</div>
+"""
+
+SUCCESS_HTML = STYLE + """
+<div style="max-width:600px;margin:28px auto;">
+  <div class="card">
+    <h3>THANK YOU FOR SIGNING. WE WILL RESPOND TO YOUR EMAIL.</h3>
+    <p class="small">This was a training environment (Zainab Basim PhishSim).</p>
+  </div>
+</div>
+"""
+
+def create_campaign(name="Zainab Basim Test", notes=""):
+    token = uuid.uuid4().hex[:12]
+    c = Campaign(token=token, name=name, notes=notes)
+    db.session.add(c)
+    db.session.commit()
+    return c
+
+@app.route("/", methods=["GET"])
+def index():
+    campaigns = Campaign.query.order_by(Campaign.created_at.desc()).all()
+    return render_template_string(DASHBOARD_HTML, campaigns=campaigns, base_url=BASE_URL)
+
+@app.route("/create", methods=["POST"])
+def create():
+    name = request.form.get("name") or "Zainab Basim Test"
+    notes = request.form.get("notes") or ""
+    c = create_campaign(name=name, notes=notes)
+    return redirect(url_for("index"))
+
+@app.route("/c/<token>", methods=["GET"])
+def landing(token):
+    campaign = Campaign.query.filter_by(token=token).first_or_404()
+    ip = request.remote_addr or ""
+    ua = (request.headers.get("User-Agent") or "")[:511]
+    referer = (request.headers.get("Referer") or "")[:511]
+    e = Event(campaign_id=campaign.id, event_type="open", ip=ip, ua=ua, referer=referer)
+    db.session.add(e)
+    db.session.commit()
+    return render_template_string(LANDING_HTML, token=token, campaign=campaign)
+
+@app.route("/submit/<token>", methods=["POST"])
+def submit(token):
+    campaign = Campaign.query.filter_by(token=token).first_or_404()
+    ip = request.remote_addr or ""
+    ua = (request.headers.get("User-Agent") or "")[:511]
+    referer = (request.headers.get("Referer") or "")[:511]
+    data = {k: v for k, v in request.form.items()}
+    e = Event(campaign_id=campaign.id, event_type="submit", ip=ip, ua=ua, referer=referer, data=str(data))
+    db.session.add(e)
+    db.session.commit()
+    return render_template_string(SUCCESS_HTML, campaign=campaign)
+
+@app.route("/reports/<int:campaign_id>/csv", methods=["GET"])
+def export_csv(campaign_id):
+    campaign = Campaign.query.get_or_404(campaign_id)
+    events = Event.query.filter_by(campaign_id=campaign.id).order_by(Event.ts.asc()).all()
+    csv_path = os.path.join(INSTANCE_DIR, f"report_{campaign.token}.csv")
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["timestamp","event_type","ip","user_agent","referer","data"])
+        for ev in events:
+            w.writerow([ev.ts.isoformat(), ev.event_type, ev.ip, ev.ua, ev.referer, ev.data])
+    return send_file(csv_path, as_attachment=True)
+
+if __name__ == "__main__":
+    # Print banner once
+    if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not DEBUG:
+        try:
+            # Print with cyan-green header color for terminal look
+            print("\033[1;36m" + ASCII_BANNER + "\033[0m")
+        except Exception:
+            pass
+    with app.app_context():
+        db.create_all()
+    print("[1] Zainab Basim PhishSim v2 running")
+    print(f"[2] Base URL: {BASE_URL}")
+    print(f"[3] Dashboard at http://{HOST}:{PORT}")
+    app.run(host=HOST, port=PORT, debug=DEBUG, use_reloader=False)

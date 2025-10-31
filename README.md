@@ -12,10 +12,10 @@ Warning: This repository is intended for authorized training/testing environment
 
 ## Quick start (development)
 ```bash
-git clone https://github.com/YOUR_USERNAME/zainab-phishsim.git
+git clone https://github.com/002iw/zainab-phishsim.git
 cd zainab-phishsim
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python3 zainabbasim_phishsim_v2_unfollow_style.py
+python3 zainabbasim_phishsim.py
 # open http://localhost:5000
